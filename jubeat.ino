@@ -66,25 +66,25 @@ const uint8_t BTN_PINS[] =    {
 const uint8_t BTN_COUNT = sizeof(BTN_PINS) / sizeof(BTN_PINS[0]);
 
 // 디바운스 처리(채터링 방지)
-constexpr uint64_t PRESS_US   = 800;
-constexpr uint64_t RELEASE_US = 2500;
+constexpr uint32_t PRESS_US   = 800;
+constexpr uint32_t RELEASE_US = 2500;
 
 // 전송 스케줄
-constexpr uint64_t REPORT_MIN_PERIOD_US = 500;  // 2kHz polling
+constexpr uint32_t REPORT_MIN_PERIOD_US = 500;  // 2kHz polling
 
 struct TouchDebounce{
     bool state;       // 현재 상태(true: 눌림)
-    int64_t remainUs; // 상태 유지 누적 시간(us)
-    uint64_t lastUs;  // 마지막 업데이트 시각(us)
+    int32_t remainUs; // 상태 유지 누적 시간(us)
+    uint32_t lastUs;  // 마지막 업데이트 시각(us)
 };
 TouchDebounce buttons[BTN_COUNT];
 
 bool needSync = false;
-uint64_t nextReportAt = 0;
+uint32_t nextReportAt = 0;
 
-inline void updateDebounce(uint8_t btnIndex, uint64_t now){
+inline void updateDebounce(uint8_t btnIndex, uint32_t now){
     auto& btn = buttons[btnIndex];
-    int64_t delta = (int64_t) (now - btn.lastUs); // 래핑-세이프 차이
+    uint32_t delta = now - btn.lastUs;
     btn.lastUs = now;
     
     bool raw = digitalRead(BTN_PINS[btnIndex]) == LOW; // 현재 버튼의 상태
@@ -92,7 +92,7 @@ inline void updateDebounce(uint8_t btnIndex, uint64_t now){
         btn.remainUs += delta;
     }else{
         if(btn.remainUs > 0){
-            btn.remainUs = std::max<int64_t>(0, btn.remainUs - delta / 3);
+            btn.remainUs = std::max<int32_t>(0, btn.remainUs - delta / 3);
         }
         return;
     }
@@ -113,7 +113,7 @@ void setup(){
 }
 
 void loop(){
-    uint64_t now = micros();
+    uint32_t now = micros();
     for(uint8_t i = 0; i < BTN_COUNT; ++i){
         bool before = buttons[i].state;
         updateDebounce(i, now);
@@ -123,7 +123,7 @@ void loop(){
         }
     }
 
-    if(needSync && (int64_t) (now - nextReportAt) >= 0){ // overflow 방지를 위해 int64_t로 변환
+    if(needSync && (int32_t) (now - nextReportAt) >= 0){ // overflow 방지를 위해 int32_t로 변환
         needSync = false;
         Joystick.send_now();
         nextReportAt = now + REPORT_MIN_PERIOD_US; // 다음 전송 최소 간격(500us)
