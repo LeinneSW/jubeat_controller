@@ -1,10 +1,21 @@
+// ============================================================================
+//  Project       : Jubeat Controller
+//  Target Board  : Raspberry Pi Pico (RP2040)
+//  Arduino Core  : Earle Philhower Arduino-Pico Core
+//  Board Package : https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
+//
+//  This sketch is intended to be compiled using the above board package.
+//  Ensure 'Raspberry Pi RP2040 Boards' (by Earle Philhower) is selected
+//  in the Arduino IDE Board Manager before building.
+// ============================================================================
+
 #include <Joystick.h>
 
-// SERVICE, TEST 버튼
-const uint8_t SW_PINS[] = {14, 15};
-
 /*
-┌──────┬──────┬──────┬──────┐
+┌──────┬──────┐
+│ SRV  │ TEST │ 
+│ G14  │ G15  │ 
+├──────┼──────┤──────┬──────┐
 │ B1   │ A1   │ C1   │ D1   │
 │ G0   │ G1   │ G28  │ G27  │
 ├──────┼──────┼──────┼──────┤
@@ -19,15 +30,19 @@ const uint8_t SW_PINS[] = {14, 15};
 └──────┴──────┴──────┴──────┘
 */
 const uint8_t BTN_PINS[] =    {
-    0, 1, 28, 27,
-    2, 3, 26, 22,
-    4, 5, 21, 20,
-    6, 7, 19, 18
+    14, 15,
+    0 , 1 , 28, 27,
+    2 , 3 , 26, 22,
+    4 , 5 , 21, 20,
+    6 , 7 , 19, 18
 };
 
 /*
-실제 회로 구성을 봐야지 판단 가능
-┌──────┬──────┬──────┬──────┐
+어떤 구조가 맞는진 실제 PCB 장착 후 확인
+┌──────┬──────┐
+│ SRV  │ TEST │ 
+│ G14  │ G15  │ 
+├──────┼──────┼──────┬──────┐
 │ A1   │ B1   │ D1   │ C1   │
 │ G1   │ G0   │ G27  │ G28  │
 ├──────┼──────┼──────┼──────┤
@@ -41,17 +56,18 @@ const uint8_t BTN_PINS[] =    {
 │ G7   │ G6   │ G18  │ G19  │
 └──────┴──────┴──────┴──────┘
 */
-const uint8_t BTN_PINS_NEW[] =    {
+/*const uint8_t BTN_PINS_NEW[] =    {
+    14, 15,
     1, 0, 27, 28,
     3, 2, 22, 26,
     5, 4, 20, 21,
     7, 6, 18, 19
-};
+};*/
 const uint8_t BTN_COUNT = sizeof(BTN_PINS) / sizeof(BTN_PINS[0]);
 
 // 디바운스 처리(채터링 방지)
-constexpr uint64_t PRESS_US   = 500;
-constexpr uint64_t RELEASE_US = 1600;
+constexpr uint64_t PRESS_US   = 800;
+constexpr uint64_t RELEASE_US = 2500;
 
 // 전송 스케줄
 constexpr uint64_t REPORT_MIN_PERIOD_US = 500;  // 2kHz polling
@@ -71,33 +87,19 @@ inline void updateDebounce(uint8_t btnIndex, uint64_t now){
     int64_t delta = (int64_t) (now - btn.lastUs); // 래핑-세이프 차이
     btn.lastUs = now;
     
-    bool pressedNow = digitalRead(BTN_PINS[btnIndex]) == LOW; // INPUT_PULLUP 기준
-    if(btn.state){ // 현재 눌려진 상태(떼는것만 확인)
-        if(!pressedNow){
-            btn.remainUs -= delta;
-        }else{ // 일시적 눌림 체크(채터링)
-            auto newValue = btn.remainUs + delta / 3;
-            btn.remainUs = min(0, newValue);
-            return;
+    bool raw = digitalRead(BTN_PINS[btnIndex]) == LOW; // 현재 버튼의 상태
+    if(raw != btn.state){
+        btn.remainUs += delta;
+    }else{
+        if(btn.remainUs > 0){
+            btn.remainUs = std::max<int64_t>(0, btn.remainUs - delta / 3);
         }
+        return;
+    }
 
-        if(-btn.remainUs >= RELEASE_US){
-            btn.state = false;
-            btn.remainUs = 0;
-        }
-    }else{ // 현재 떼진 상태(누르는것만 판단)
-        if(pressedNow){
-            btn.remainUs += delta;
-        }else{ // 일시적 떼짐 체크(채터링)
-            auto newValue = btn.remainUs - delta / 3;
-            btn.remainUs = max(0, newValue);
-            return;
-        }
-
-        if(btn.remainUs >= PRESS_US){
-            btn.state = true;
-            btn.remainUs = 0;
-        }
+    if(btn.remainUs >= (raw ? PRESS_US : RELEASE_US)){
+        btn.state = raw;
+        btn.remainUs = 0;
     }
 }
 
@@ -121,7 +123,7 @@ void loop(){
         }
     }
 
-    if(needSync && (long) (now - nextReportAt) >= 0){ // overflow 방지를 위해 signed long으로 변환
+    if(needSync && (int64_t) (now - nextReportAt) >= 0){ // overflow 방지를 위해 int64_t로 변환
         needSync = false;
         Joystick.send_now();
         nextReportAt = now + REPORT_MIN_PERIOD_US; // 다음 전송 최소 간격(500us)
