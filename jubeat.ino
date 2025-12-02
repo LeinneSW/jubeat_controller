@@ -1,7 +1,7 @@
 #include <Joystick.h>
 
-// 버튼 핀
-const uint8_t SW_PINS[] = {14, 15}; // SERVICE, TEST 버튼
+// SERVICE, TEST 버튼
+const uint8_t SW_PINS[] = {14, 15};
 
 /*
 ┌──────┬──────┬──────┬──────┐
@@ -26,6 +26,7 @@ const uint8_t BTN_PINS[] =    {
 };
 
 /*
+실제 회로 구성을 봐야지 판단 가능
 ┌──────┬──────┬──────┬──────┐
 │ A1   │ B1   │ D1   │ C1   │
 │ G1   │ G0   │ G27  │ G28  │
@@ -71,10 +72,10 @@ inline void updateDebounce(uint8_t btnIndex, uint64_t now){
     btn.lastUs = now;
     
     bool pressedNow = digitalRead(BTN_PINS[btnIndex]) == LOW; // INPUT_PULLUP 기준
-    if(btn.state){ // 떼짐 여부만 판단
+    if(btn.state){ // 현재 눌려진 상태(떼는것만 확인)
         if(!pressedNow){
             btn.remainUs -= delta;
-        }else{ // 버튼이 일시적으로 눌렸다면(채터링)
+        }else{ // 일시적 눌림 체크(채터링)
             auto newValue = btn.remainUs + delta / 3;
             btn.remainUs = min(0, newValue);
             return;
@@ -84,10 +85,10 @@ inline void updateDebounce(uint8_t btnIndex, uint64_t now){
             btn.state = false;
             btn.remainUs = 0;
         }
-    }else{ // 눌림 여부만 판단
+    }else{ // 현재 떼진 상태(누르는것만 판단)
         if(pressedNow){
             btn.remainUs += delta;
-        }else{ // 버튼이 일시적으로 떼졌다면
+        }else{ // 일시적 떼짐 체크(채터링)
             auto newValue = btn.remainUs - delta / 3;
             btn.remainUs = max(0, newValue);
             return;
