@@ -82,7 +82,7 @@ TouchDebounce buttons[BTN_COUNT];
 bool needSync = false;
 uint32_t nextReportAt = 0;
 
-inline void updateDebounce(uint8_t btnIndex, uint32_t now){
+void updateDebounce(uint8_t btnIndex, uint32_t now){
     auto& btn = buttons[btnIndex];
     uint32_t delta = now - btn.lastUs;
     btn.lastUs = now;
